@@ -45,18 +45,21 @@ with col2:
 with st.expander("⚙️ KRX 쿠키 설정 (공매도 탭 필요)", expanded=False):
     st.markdown(
         "1. [data.krx.co.kr](https://data.krx.co.kr) 로그인\n"
-        "2. F12 → Network → 아무 요청 클릭 → Request Headers의 **Cookie** 값 복사\n"
+        "2. F12 → Network 탭 → 아무 요청 클릭 → Request Headers → **Cookie** 전체 값 복사\n"
+        "   (JSESSIONID만 아니라 앞에 __smVisitorID=... 등 포함한 긴 문자열 전체)\n"
         "3. 아래 붙여넣기 후 저장"
     )
     krx_cookie_input = st.text_area(
         "KRX Cookie",
         value=st.session_state.get("krx_cookie", ""),
-        height=80,
-        placeholder="JSESSIONID=... 형태로 붙여넣기",
+        height=100,
+        placeholder="__smVisitorID=...; lang=ko_KR; JSESSIONID=... 전체 붙여넣기",
     )
     if st.button("쿠키 저장"):
         st.session_state["krx_cookie"] = krx_cookie_input
         st.success("저장됐어요!")
+
+    debug_mode = st.checkbox("🐛 디버그 모드 (응답 확인용)", value=False)
 
 def get_krx_headers():
     return {
@@ -70,6 +73,7 @@ def get_krx_headers():
 
 tab1, tab2 = st.tabs(["📉 대차잔고", "🔻 공매도"])
 
+# ── TAB 1: 대차잔고 ─────────────────────────────────────────────────────────
 with tab1:
     if st.button("조회", key="btn1"):
         all_data = {}
@@ -112,6 +116,7 @@ with tab1:
                     st.markdown(f"**{name}**")
                     st.bar_chart(series)
 
+# ── TAB 2: 공매도 ──────────────────────────────────────────────────────────
 with tab2:
     if st.button("조회", key="btn2"):
         if not st.session_state.get("krx_cookie", ""):
@@ -120,6 +125,7 @@ with tab2:
             all_val = {}
             progress = st.progress(0)
             status = st.empty()
+
             for i, (code, name) in enumerate(STOCKS.items()):
                 status.text(f"{name} 공매도 불러오는 중... ({i+1}/{len(STOCKS)})")
                 try:
@@ -138,6 +144,12 @@ with tab2:
                         headers=get_krx_headers(),
                         timeout=10
                     )
+
+                    # 디버그 모드: 첫 종목 응답 출력
+                    if st.session_state.get("debug_mode") or (i == 0 and debug_mode):
+                        st.write(f"**[DEBUG] {name}** status={res.status_code}")
+                        st.code(res.text[:500])
+
                     data = res.json()
                     if "OutBlock_1" in data and data["OutBlock_1"]:
                         df = pd.DataFrame(data["OutBlock_1"])
@@ -149,14 +161,15 @@ with tab2:
                             .apply(pd.to_numeric, errors="coerce")
                             / 1_000_000_000
                         )
-                except:
-                    pass
+                except Exception as e:
+                    if i == 0 and debug_mode:
+                        st.error(f"[DEBUG] {name} 오류: {e}")
                 progress.progress((i + 1) / len(STOCKS))
 
             status.text("완료!")
             if all_val:
                 chart_val = pd.DataFrame(all_val)
-                st.subheader("상세 데이터 (단위: 십억원)")
+                st.subheader("공매도 거래대금 (단위: 십억원)")
                 st.dataframe(chart_val.style.format("{:,.2f}"))
                 st.subheader("종목별 공매도 거래대금 (단위: 십억원)")
                 cols = st.columns(2)
@@ -165,4 +178,4 @@ with tab2:
                         st.markdown(f"**{name}**")
                         st.bar_chart(series)
             else:
-                st.error("데이터를 가져오지 못했어요. 쿠키가 만료됐을 수 있어요. 위 설정에서 쿠키를 다시 입력해주세요.")
+                st.error("데이터를 가져오지 못했어요. 쿠키가 만료됐거나 전체 Cookie 값을 복사하지 않았을 수 있어요.")
