@@ -1,7 +1,8 @@
 import streamlit as st
-import requests
 import pandas as pd
 from datetime import datetime, timedelta
+import requests
+from pykrx import stock as krx
 
 API_KEY = "de924ae6c9703a84f1692ac05189e7a9a8796f713f4b08e4342aee0e9d6edff7"
 BASE_URL = "http://apis.data.go.kr/1160100/service/GetCMStckLnbInfoService"
@@ -26,9 +27,6 @@ STOCKS = {
     "006400": "삼성SDI", "247540": "에코프로비엠"
 }
 
-def get_isin(code):
-    return f"KR7{code}000"
-
 st.title("📊 공매도 · 대차잔고 대시보드")
 
 today = datetime.today()
@@ -41,39 +39,9 @@ with col1:
 with col2:
     end = st.date_input("종료일", value=last_friday)
 
-# ── KRX 쿠키 설정 ──────────────────────────────────────────────────────────
-with st.expander("⚙️ KRX 쿠키 설정 (공매도 탭 필요)", expanded=False):
-    st.markdown(
-        "1. [data.krx.co.kr](https://data.krx.co.kr) 로그인\n"
-        "2. F12 → Network 탭 → 아무 요청 클릭 → Request Headers → **Cookie** 전체 값 복사\n"
-        "   (JSESSIONID만 아니라 앞에 __smVisitorID=... 등 포함한 긴 문자열 전체)\n"
-        "3. 아래 붙여넣기 후 저장"
-    )
-    krx_cookie_input = st.text_area(
-        "KRX Cookie",
-        value=st.session_state.get("krx_cookie", ""),
-        height=100,
-        placeholder="__smVisitorID=...; lang=ko_KR; JSESSIONID=... 전체 붙여넣기",
-    )
-    if st.button("쿠키 저장"):
-        st.session_state["krx_cookie"] = krx_cookie_input
-        st.success("저장됐어요!")
-
-    debug_mode = st.checkbox("🐛 디버그 모드 (응답 확인용)", value=False)
-
-def get_krx_headers():
-    return {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://data.krx.co.kr/",
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "X-Requested-With": "XMLHttpRequest",
-        "Cookie": st.session_state.get("krx_cookie", ""),
-    }
-
 tab1, tab2 = st.tabs(["📉 대차잔고", "🔻 공매도"])
 
-# ── TAB 1: 대차잔고 ─────────────────────────────────────────────────────────
+# ── TAB 1: 대차잔고 (기존 공공API) ─────────────────────────────────────────
 with tab1:
     if st.button("조회", key="btn1"):
         all_data = {}
@@ -116,66 +84,39 @@ with tab1:
                     st.markdown(f"**{name}**")
                     st.bar_chart(series)
 
-# ── TAB 2: 공매도 ──────────────────────────────────────────────────────────
+# ── TAB 2: 공매도 (pykrx — 쿠키 불필요) ────────────────────────────────────
 with tab2:
     if st.button("조회", key="btn2"):
-        if not st.session_state.get("krx_cookie", ""):
-            st.warning("⚠️ 위 '⚙️ KRX 쿠키 설정'에서 쿠키를 먼저 입력해주세요.")
+        all_val = {}
+        progress = st.progress(0)
+        status = st.empty()
+        start_str = start.strftime("%Y%m%d")
+        end_str = end.strftime("%Y%m%d")
+
+        for i, (code, name) in enumerate(STOCKS.items()):
+            status.text(f"{name} 공매도 불러오는 중... ({i+1}/{len(STOCKS)})")
+            try:
+                df = krx.get_shorting_volume_by_date(start_str, end_str, code)
+                # 거래대금 컬럼
+                df2 = krx.get_shorting_value_by_date(start_str, end_str, code)
+                if not df2.empty and "공매도" in df2.columns:
+                    series = df2["공매도"] / 1_000_000_000
+                    series.index = pd.to_datetime(series.index)
+                    all_val[name] = series
+            except:
+                pass
+            progress.progress((i + 1) / len(STOCKS))
+
+        status.text("완료!")
+        if all_val:
+            chart_val = pd.DataFrame(all_val)
+            st.subheader("공매도 거래대금 (단위: 십억원)")
+            st.dataframe(chart_val.style.format("{:,.2f}"))
+            st.subheader("종목별 공매도 거래대금 (단위: 십억원)")
+            cols = st.columns(2)
+            for i, (name, series) in enumerate(all_val.items()):
+                with cols[i % 2]:
+                    st.markdown(f"**{name}**")
+                    st.bar_chart(series)
         else:
-            all_val = {}
-            progress = st.progress(0)
-            status = st.empty()
-
-            for i, (code, name) in enumerate(STOCKS.items()):
-                status.text(f"{name} 공매도 불러오는 중... ({i+1}/{len(STOCKS)})")
-                try:
-                    res = requests.post(
-                        "https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd",
-                        data={
-                            "bld": "dbms/MDC/STAT/srt/MDCSTAT30001",
-                            "locale": "ko_KR",
-                            "isuCd": get_isin(code),
-                            "strtDd": start.strftime("%Y%m%d"),
-                            "endDd": end.strftime("%Y%m%d"),
-                            "share": "1",
-                            "money": "1",
-                            "csvxls_isNo": "false"
-                        },
-                        headers=get_krx_headers(),
-                        timeout=10
-                    )
-
-                    # 디버그 모드: 첫 종목 응답 출력
-                    if st.session_state.get("debug_mode") or (i == 0 and debug_mode):
-                        st.write(f"**[DEBUG] {name}** status={res.status_code}")
-                        st.code(res.text[:500])
-
-                    data = res.json()
-                    if "OutBlock_1" in data and data["OutBlock_1"]:
-                        df = pd.DataFrame(data["OutBlock_1"])
-                        df["날짜"] = pd.to_datetime(df["TRD_DD"])
-                        df = df.set_index("날짜")
-                        all_val[name] = (
-                            df["CVSRTSELL_TRDVAL"]
-                            .astype(str).str.replace(",", "")
-                            .apply(pd.to_numeric, errors="coerce")
-                            / 1_000_000_000
-                        )
-                except Exception as e:
-                    if i == 0 and debug_mode:
-                        st.error(f"[DEBUG] {name} 오류: {e}")
-                progress.progress((i + 1) / len(STOCKS))
-
-            status.text("완료!")
-            if all_val:
-                chart_val = pd.DataFrame(all_val)
-                st.subheader("공매도 거래대금 (단위: 십억원)")
-                st.dataframe(chart_val.style.format("{:,.2f}"))
-                st.subheader("종목별 공매도 거래대금 (단위: 십억원)")
-                cols = st.columns(2)
-                for i, (name, series) in enumerate(all_val.items()):
-                    with cols[i % 2]:
-                        st.markdown(f"**{name}**")
-                        st.bar_chart(series)
-            else:
-                st.error("데이터를 가져오지 못했어요. 쿠키가 만료됐거나 전체 Cookie 값을 복사하지 않았을 수 있어요.")
+            st.error("공매도 데이터를 가져오지 못했어요. 날짜 범위를 확인해주세요.")
