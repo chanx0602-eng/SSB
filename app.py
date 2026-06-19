@@ -199,17 +199,20 @@ with tab2:
 st.divider()
 st.subheader("🔧 디버그: 삼성전자 단독 테스트")
 if st.button("디버그 실행"):
+    debug_cookie = "__smVisitorID=PhrSzPgQb1j; lang=ko_KR; npPfsHost=127.0.0.1; npPfsPort=14440; JSESSIONID=2OciVWkMFC41RzbmnXOmTYm6fR91bwhKdC1KuFYNJxXqRjW3TpDVhDBrYgB80jX1.bWRjX2RvbWFpbi9tZGNvd2FwMS1tZGNhcHAxMQ=="
+    
     debug_headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         "Origin": "https://data.krx.co.kr",
-        "Referer": "https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020203",
+        "Referer": "https://data.krx.co.kr/comm/srt/srtLoader/index.cmd?screenId=MDCSTAT300&isuCd=475580",
         "X-Requested-With": "XMLHttpRequest",
         "Sec-Fetch-Dest": "empty",
         "Sec-Fetch-Mode": "cors",
         "Sec-Fetch-Site": "same-origin",
+        "Cookie": debug_cookie,
     }
     res = requests.post(
         "https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd",
