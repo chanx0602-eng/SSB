@@ -195,3 +195,33 @@ with tab2:
                     st.line_chart(series)
         else:
             st.warning("데이터를 가져오지 못했어요. KRX 접속이 차단됐을 수 있어요.")
+# ── 디버그용 ─────────────────────────────────────────────
+st.divider()
+st.subheader("🔧 디버그: 삼성전자 단독 테스트")
+if st.button("디버그 실행"):
+    debug_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://data.krx.co.kr/comm/srt/srtLoader/index.cmd?screenId=MDCSTAT300",
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "X-Requested-With": "XMLHttpRequest",
+    }
+    res = requests.post(
+        "https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd",
+        data={
+            "bld": "dbms/MDC_OUT/STAT/srt/MDCSTAT30001_OUT",
+            "locale": "ko_KR",
+            "isuCd": "KR7005930003",
+            "isuCd2": "",
+            "strtDd": start_str,
+            "endDd": end_str,
+            "share": "1",
+            "money": "1",
+            "csvxls_isNo": "false"
+        },
+        headers=debug_headers,
+        timeout=10
+    )
+    st.write("**상태 코드:**", res.status_code)
+    st.write("**응답 텍스트 (앞 1000자):**")
+    st.code(res.text[:1000])
