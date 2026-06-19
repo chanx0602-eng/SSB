@@ -200,19 +200,27 @@ st.divider()
 st.subheader("🔧 디버그: 삼성전자 단독 테스트")
 if st.button("디버그 실행"):
     debug_headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://data.krx.co.kr/comm/srt/srtLoader/index.cmd?screenId=MDCSTAT300",
-        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
         "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Origin": "https://data.krx.co.kr",
+        "Referer": "https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020203",
         "X-Requested-With": "XMLHttpRequest",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
     }
     res = requests.post(
         "https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd",
         data={
             "bld": "dbms/MDC_OUT/STAT/srt/MDCSTAT30001_OUT",
             "locale": "ko_KR",
+            "tboxisuCd_finder_srtisu0": "005930/삼성전자",
             "isuCd": "KR7005930003",
             "isuCd2": "",
+            "codeNmisuCd_finder_srtisu0": "삼성전자",
+            "param1isuCd_finder_srtisu0": "",
             "strtDd": start_str,
             "endDd": end_str,
             "share": "1",
@@ -223,5 +231,6 @@ if st.button("디버그 실행"):
         timeout=10
     )
     st.write("**상태 코드:**", res.status_code)
-    st.write("**응답 텍스트 (앞 1000자):**")
-    st.code(res.text[:1000])
+    st.write("**Content-Type:**", res.headers.get("Content-Type"))
+    st.write("**응답 텍스트 (앞 1500자):**")
+    st.code(res.text[:1500])
